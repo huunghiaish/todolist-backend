@@ -1,0 +1,89 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  notify-running:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Extract repository name
+      id: repo_name
+      run: echo "REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_ENV
+
+    - name: Notify Telegram (Running)
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        REPO_NAME: ${{ env.REPO_NAME }}
+        TAG_NAME: ${{ github.ref_name }}
+      run: |
+        MESSAGE="${REPO_NAME} (${TAG_NAME}): running"
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -d chat_id="${TELEGRAM_CHAT_ID}" \
+        -d text="${MESSAGE}"
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+    - name: Extract repository name
+      id: repo_name
+      run: echo "REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_ENV
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.REPO_NAME }}:${{ github.ref_name }}
+        build-args: |
+          NEXT_PUBLIC_WORDPRESS_URL=${{ secrets.NEXT_PUBLIC_WORDPRESS_URL }}
+          FAUST_SECRET_KEY=${{ secrets.FAUST_SECRET_KEY }}
+          NEXT_PUBLIC_URL=${{ secrets.NEXT_PUBLIC_URL }}
+
+    - name: Docker Metadata
+      uses: docker/metadata-action@v3
+      with:
+        images: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.REPO_NAME }}
+        tags: type=ref,event=branch
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  notify-success-fail:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - name: Extract repository name
+      id: repo_name
+      run: echo "REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_ENV
+
+    - name: Notify Telegram (Success or Failure)
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        REPO_NAME: ${{ env.REPO_NAME }}
+        TAG_NAME: ${{ github.ref_name }}
+        BUILD_RESULT: ${{ needs.build.result }}
+      run: |
+        if [ "${BUILD_RESULT}" == "success" ]; then
+          MESSAGE="${REPO_NAME} (${TAG_NAME}): success"
+        else
+          MESSAGE="${REPO_NAME} (${TAG_NAME}): failed"
+        fi
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -d chat_id="${TELEGRAM_CHAT_ID}" \
+        -d text="${MESSAGE}"

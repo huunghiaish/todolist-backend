@@ -1,20 +1,22 @@
 # Dependencies
 node_modules/
 
+# Build output
+dist/
+
 # Environment variables
 .env
 
 # Logs
-logs
 *.log
 npm-debug.log*
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+yarn-debug.log*
+yarn-error.log*
 
 # IDE
 .vscode/
-.idea/ 
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
