@@ -44,6 +44,10 @@ jobs:
       id: repo_name
       run: echo "REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_ENV
 
+    - name: Extract tag name
+      id: tag_name
+      run: echo "TAG_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
     - name: Strip 'v' from tag name
       id: stripped_tag_name
       run: echo "STRIPPED_TAG_NAME=$(echo ${{ env.TAG_NAME }} | sed 's/^v//')" >> $GITHUB_ENV
